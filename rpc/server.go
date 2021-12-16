@@ -1,42 +1,44 @@
 package main
 
 import (
-	"fmt"
 	"log"
+	"net"
 	"net/rpc"
 )
-const HelloServiceNameClient = "path/hello/pkt"
 
-type HelloServiceClient struct {
-	*rpc.Client
+const HelloServiceName = "path/hello/pkt"
+type HelloServiceInterface = interface {
+	Hello(req string,reply * string)error
+	Hello2(req string,reply *string)error
 }
 
-func DialHelloService(network,addr string) (*HelloServiceClient,error) {
-	c,err := rpc.Dial(network,addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return &HelloServiceClient{Client:c},err
+type HelloSVC struct {
 }
-func (c *HelloServiceClient)Hello(req string,reply * string) error {
-	return c.Client.Call(HelloServiceNameClient+".Hello",req,reply)
+func (h *HelloSVC) Hello(req string,reply *string) error{
+	*reply = "hello " + req
+	return nil
 }
 
-func (c * HelloServiceClient)Hello2(req string,reply * string)error  {
-	return c.Client.Call(HelloServiceNameClient+".Hello2",req,reply)
+func (h *HelloSVC) Hello2(req string,reply *string) error{
+	*reply = "hello2 " + req
+	return nil
+}
+
+func RegHelloService(svc HelloServiceInterface)error  {
+	return rpc.RegisterName(HelloServiceName,svc)
 }
 func main() {
-	client,err := DialHelloService("tcp",":1234")
+	RegHelloService(new(HelloSVC))
+	listen,err := net.Listen("tcp",":1234")
 	if err != nil {
-		log.Println(err)
+		log.Fatal("listen tcp 1234 err: ",err)
 	}
-
-	var reply string
-	var reply2 string
-	err = client.Hello("xiaodong",&reply)
-	if err != nil {
-		log.Fatal(err)
+	log.Println("listen on 1234")
+	for  {
+		conn, err := listen.Accept()
+		if err != nil {
+			log.Fatal("accept err: ",err)
+		}
+		go rpc.ServeConn(conn)
 	}
-	client.Hello2("ruiteng",&reply2)
-	fmt.Println(reply,reply2)
 }
